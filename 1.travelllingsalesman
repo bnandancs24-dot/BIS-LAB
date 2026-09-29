@@ -1,0 +1,101 @@
+import random
+import math
+
+# --- 1. Problem Setup ---
+# Coordinates for 5 cities (x, y)
+CITIES = [(0, 0), (1, 5), (5, 2), (6, 6), (2, 8)]
+NUM_CITIES = len(CITIES)
+
+def distance(city1, city2):
+    return math.hypot(city1[0] - city2[0], city1[1] - city2[1])
+
+def calculate_total_distance(route):
+    dist = 0
+    for i in range(NUM_CITIES):
+        dist += distance(CITIES[route[i]], CITIES[route[(i + 1) % NUM_CITIES]])
+    return dist
+
+def calculate_fitness(route):
+    return 1.0 / calculate_total_distance(route)
+
+# --- 2. TSP-Specific Genetic Operators ---
+
+def create_individual():
+    route = list(range(NUM_CITIES))
+    random.shuffle(route)
+    return route
+
+def order_crossover(parent1, parent2):
+    """Order Crossover (OX) prevents city duplication."""
+    start, end = sorted(random.sample(range(NUM_CITIES), 2))
+    child = [None] * NUM_CITIES
+    
+    # Copy segment from parent1
+    child[start:end] = parent1[start:end]
+    
+    # Fill remaining spots with parent2's cities in order
+    p2_cities = [c for c in parent2 if c not in child[start:end]]
+    
+    p2_idx = 0
+    for i in range(NUM_CITIES):
+        if child[i] is None:
+            child[i] = p2_cities[p2_idx]
+            p2_idx += 1
+            
+    return child
+
+def swap_mutation(route, p_m):
+    """Swaps two cities with probability p_m."""
+    if random.random() < p_m:
+        i, j = random.sample(range(NUM_CITIES), 2)
+        route[i], route[j] = route[j], route[i]
+    return route
+
+def tournament_selection(population, k=3):
+    """Selects the best individual out of k randomly chosen individuals."""
+    selected = random.sample(population, k)
+    return max(selected, key=calculate_fitness)
+
+# --- 3. Main Genetic Algorithm Loop ---
+
+def run_tsp_ga(pop_size=20, p_c=0.8, p_m=0.2, generations=100):
+    # Step 1: Initialize population
+    population = [create_individual() for _ in range(pop_size)]
+    best_route = max(population, key=calculate_fitness)
+
+    # Step 2: Evolutionary loop
+    for gen in range(generations):
+        new_population = []
+        
+        # Elitism: preserve best route found so far
+        new_population.append(best_route.copy())
+
+        while len(new_population) < pop_size:
+            # Selection
+            parent1 = tournament_selection(population)
+            parent2 = tournament_selection(population)
+
+            # Crossover
+            if random.random() < p_c:
+                child = order_crossover(parent1, parent2)
+            else:
+                child = parent1.copy()
+
+            # Mutation
+            child = swap_mutation(child, p_m)
+            
+            new_population.append(child)
+
+        population = new_population
+        
+        # Update overall best
+        current_best = max(population, key=calculate_fitness)
+        if calculate_fitness(current_best) > calculate_fitness(best_route):
+            best_route = current_best
+
+    return best_route, calculate_total_distance(best_route)
+
+# --- 4. Execution ---
+best_path, min_dist = run_tsp_ga(pop_size=30, p_c=0.85, p_m=0.15, generations=150)
+print("Best Route Found:", best_path)
+print("Minimum Distance:", round(min_dist, 2))
